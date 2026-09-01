@@ -22,31 +22,45 @@ export type Task = {
 
 export async function getTasks(filterByUid?: string): Promise<Task[]> {
   const tasksRef = collection(db, "tasks");
-  const q = filterByUid
-    ? query(tasksRef, where("assignedTo", "==", filterByUid))
-    : tasksRef;
 
-  const tasksSnap = await getDocs(q as any);
+  const tasksQuery = filterByUid
+    ? query(tasksRef, where("assignedTo", "==", filterByUid))
+    : query(tasksRef);
+
+  const tasksSnap = await getDocs(tasksQuery);
 
   const tasks = await Promise.all(
     tasksSnap.docs.map(async (taskDoc) => {
-      const data = taskDoc.data();
+      const data = taskDoc.data() as {
+        title?: string;
+        assignedTo?: string;
+        priority?: "Low" | "Medium" | "High";
+        progress?: number;
+        status?: "To Do" | "In Progress" | "Completed";
+      };
 
       let employeeName = "Unassigned";
+
       if (data.assignedTo) {
-        const userSnap = await getDoc(doc(db, "users", data.assignedTo));
+        const userRef = doc(db, "users", data.assignedTo);
+        const userSnap = await getDoc(userRef);
+
         if (userSnap.exists()) {
-          employeeName = userSnap.data().name;
+          const userData = userSnap.data() as {
+            name?: string;
+          };
+
+          employeeName = userData.name || "Unknown";
         }
       }
 
       return {
         id: taskDoc.id,
-        title: data.title,
+        title: data.title || "",
         employee: employeeName,
-        priority: data.priority,
-        progress: data.progress,
-        status: data.status,
+        priority: data.priority || "Medium",
+        progress: data.progress ?? 0,
+        status: data.status || "To Do",
       };
     })
   );
